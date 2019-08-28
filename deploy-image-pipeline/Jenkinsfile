@@ -1,0 +1,34 @@
+pipeline {
+	agent any
+	stages {
+		stage('Create blue image') {
+			steps {
+				withAWS(region:'us-east-1', credentials:'aws-static') {
+					sh '''
+						kubectl run blueimage --image=andresaaap/udacitypinzonimage:v2pro3 --port=80
+					'''
+				}
+			}
+		}
+
+		stage('Expose container') {
+			steps {
+				withAWS(region:'us-east-1', credentials:'aws-static') {
+					sh '''
+						kubectl expose deployment blueimage --type=LoadBalancer --port=80
+					'''
+				}
+			}
+		}
+
+		stage('Domain redirect blue') {
+			steps {
+				withAWS(region:'us-east-1', credentials:'aws-static') {
+					sh '''
+						aws route53 change-resource-record-sets --hosted-zone-id ZKCU19G790VD6 --change-batch file://blue-alias-record.json
+					'''
+				}
+			}
+		}
+	}
+}
