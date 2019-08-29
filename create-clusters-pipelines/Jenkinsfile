@@ -6,6 +6,24 @@ pipeline {
 				withAWS(region:'us-east-1', credentials:'aws-static') {
 					sh '''
 						eksctl create cluster \
+						--name prodalvimablue \
+						--version 1.13 \
+						--nodegroup-name standard-workers \
+						--node-type t2.small \
+						--nodes 3 \
+						--nodes-min 1 \
+						--nodes-max 4 \
+						--node-ami auto
+					'''
+				}
+			}
+		}
+
+		stage('Create green kubernetes cluster') {
+			steps {
+				withAWS(region:'us-east-1', credentials:'aws-static') {
+					sh '''
+						eksctl create cluster \
 						--name prodalvimagreen \
 						--version 1.13 \
 						--nodegroup-name standard-workers \
@@ -14,6 +32,26 @@ pipeline {
 						--nodes-min 1 \
 						--nodes-max 4 \
 						--node-ami auto
+					'''
+				}
+			}
+		}
+
+		stage('Create conf file cluster blue') {
+			steps {
+				withAWS(region:'us-east-1', credentials:'aws-static') {
+					sh '''
+						aws eks --region us-east-1 update-kubeconfig --name prodalvimablue
+					'''
+				}
+			}
+		}
+
+		stage('Create conf file cluster green') {
+			steps {
+				withAWS(region:'us-east-1', credentials:'aws-static') {
+					sh '''
+						aws eks --region us-east-1 update-kubeconfig --name prodalvimagreen
 					'''
 				}
 			}
