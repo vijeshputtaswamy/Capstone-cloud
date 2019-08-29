@@ -38,11 +38,11 @@ pipeline {
 			}
 		}
 
-		stage('Create blue image') {
+		stage('Create blue container') {
 			steps {
 				withAWS(region:'us-east-1', credentials:'aws-static') {
 					sh '''
-						kubectl run blueimage --image=andresaaap/udacitypinzonimage:v2pro3 --port=80
+						kubectl run blueimage --image=andresaaap/cloudcapstone:$BUILD_ID --port=80
 					'''
 				}
 			}
