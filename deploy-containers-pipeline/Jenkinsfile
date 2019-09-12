@@ -1,6 +1,7 @@
 pipeline {
 	agent any
 	stages {
+
 		stage('Lint HTML') {
 			steps {
 				sh 'tidy -q -e *.html'
@@ -11,7 +12,7 @@ pipeline {
 			steps {
 				withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD']]){
 					sh '''
-						docker build -t andresaaap/cloudcapstone:$BUILD_ID .
+						docker build -t andresaaap/cloudcapstonev2 .
 					'''
 				}
 			}
@@ -22,7 +23,7 @@ pipeline {
 				withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD']]){
 					sh '''
 						docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
-						docker push andresaaap/cloudcapstone:$BUILD_ID
+						docker push andresaaap/cloudcapstonev2
 					'''
 				}
 			}
@@ -32,40 +33,57 @@ pipeline {
 			steps {
 				withAWS(region:'us-east-1', credentials:'aws-static') {
 					sh '''
-						kubectl config use-context arn:aws:eks:us-east-1:546547842218:cluster/prodalvima2
+						kubectl config use-context arn:aws:eks:us-east-1:546547842218:cluster/capstonecluster
 					'''
 				}
 			}
 		}
 
-		stage('Create blue container') {
+		stage('Deploy blue container') {
 			steps {
 				withAWS(region:'us-east-1', credentials:'aws-static') {
 					sh '''
-						kubectl run blueimage --image=andresaaap/cloudcapstone:$BUILD_ID --port=80
+						kubectl apply -f ./blue-controller.json
 					'''
 				}
 			}
 		}
 
-		stage('Expose container') {
+		stage('Deploy green container') {
 			steps {
 				withAWS(region:'us-east-1', credentials:'aws-static') {
 					sh '''
-						kubectl expose deployment blueimage --type=LoadBalancer --port=80
+						kubectl apply -f ./green-controller.json
 					'''
 				}
 			}
 		}
 
-		stage('Domain redirect blue') {
+		stage('Create the service in the cluster, redirect to blue') {
 			steps {
 				withAWS(region:'us-east-1', credentials:'aws-static') {
 					sh '''
-						aws route53 change-resource-record-sets --hosted-zone-id ZKCU19G790VD6 --change-batch file://alias-record.json
+						kubectl apply -f ./blue-service.json
 					'''
 				}
 			}
 		}
+
+		stage('Wait user approve') {
+            steps {
+                input "Ready to redirect traffic to green?"
+            }
+        }
+
+		stage('Create the service in the cluster, redirect to green') {
+			steps {
+				withAWS(region:'us-east-1', credentials:'aws-static') {
+					sh '''
+						kubectl apply -f ./green-service.json
+					'''
+				}
+			}
+		}
+
 	}
 }
